@@ -1,0 +1,21 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index fc6b846..c024ef6 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -239,8 +239,14 @@ message("-- Building with C++${CMAKE_CXX_STANDARD}")
+ 
+ # Eigen.
+ # Eigen delivers Eigen3Config.cmake since v3.3.3
+-find_package(Eigen3 3.3 CONFIG REQUIRED
+-  HINTS ${HOMEBREW_INCLUDE_DIR_HINTS})
++# PATCH COMMENT
++# Currently conan packaging does not deliver an Eigen3Config.cmake for version 3.3.7
++find_package(Eigen3 3.3)
++if(EIGEN3_INCLUDE_DIR AND NOT TARGET Eigen3::Eigen)
++   add_library(Eigen3::Eigen INTERFACE IMPORTED)
++   target_include_directories(Eigen3::Eigen INTERFACE ${EIGEN3_INCLUDE_DIR})
++endif()
++
+ if (EIGEN3_FOUND)
+   message("-- Found Eigen version ${EIGEN3_VERSION_STRING}: ${EIGEN3_INCLUDE_DIRS}")
+   if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*)" AND
