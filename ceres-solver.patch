@@ -1,34 +1,21 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index fc6b846..1838a2c 100644
+index 7de7d37..0789d9c 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -239,16 +239,24 @@ message("-- Building with C++${CMAKE_CXX_STANDARD}")
+@@ -236,6 +236,16 @@ message("-- Building with C++${CMAKE_CXX_STANDARD}")
  
  # Eigen.
  # Eigen delivers Eigen3Config.cmake since v3.3.3
--find_package(Eigen3 3.3 CONFIG REQUIRED
--  HINTS ${HOMEBREW_INCLUDE_DIR_HINTS})
 +#####################
 +# Patch comment
 +# While it is true that Eigen3Config.cmake is
 +# delivered since v3.3.3, it is not bundled with
-+# the conan version. A patch and a module is bundled to fix
-+# this here.
++# the conan version. This patch enables compatibility
++# with conan.
 +####################
 +find_package(Eigen3 3.3 REQUIRED)
 +set(EIGEN3_VERSION_STRING ${EIGEN3_VERSION})
 +set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
+ find_package(Eigen3 3.3 CONFIG REQUIRED
+   HINTS ${HOMEBREW_INCLUDE_DIR_HINTS})
  if (EIGEN3_FOUND)
--  message("-- Found Eigen version ${EIGEN3_VERSION_STRING}: ${EIGEN3_INCLUDE_DIRS}")
-+  message("-- Found Eigen version ${EIGEN3_VERSION}: ${EIGEN3_INCLUDE_DIR}")
-   if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*)" AND
--      EIGEN3_VERSION_STRING VERSION_LESS 3.3.4)
-+      EIGEN3_VERSION VERSION_LESS 3.3.4)
-     # As per issue #289: https://github.com/ceres-solver/ceres-solver/issues/289
-     # the bundle_adjustment_test will fail for Eigen < 3.3.4 on aarch64.
-     message(FATAL_ERROR "-- Ceres requires Eigen version >= 3.3.4 on aarch64. "
--      "Detected version of Eigen is: ${EIGEN3_VERSION_STRING}.")
-+      "Detected version of Eigen is: ${EIGEN3_VERSION}.")
-   endif()
- 
-   if (EIGENSPARSE)

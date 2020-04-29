@@ -79,7 +79,8 @@ class CeresSolver(ConanFile):
     def source(self):
         git = tools.Git(folder=self._source_subfolder)
         git.clone("https://github.com/ceres-solver/ceres-solver.git")
-        git.checkout("edb8322bdabef336db290be1cc557145b6d4bf80")
+        #git.checkout("edb8322bdabef336db290be1cc557145b6d4bf80") # <-Works!
+        git.checkout("8c36bcc81fbd4f78a2faa2c914ef40af264f4c31") # <- 27 april 2020
 
     def build(self):
         # Patch to find Eigen3 properly
