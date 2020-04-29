@@ -5,87 +5,145 @@ from conans.client.build.cppstd_flags import cppstd_default
 from conans.tools import download, unzip
 import os, re
 
-class CeresSolverConan(ConanFile):
+class CeresSolver(ConanFile):
     name = "ceres-solver"
     version = "2.0.0"
     license = "New BSD"
-    url = "https://github.com/ceres-solver/ceres-solver/"
+    url = "https://github.com/ceres-solver/ceres-solver"
     settings = "os", "compiler", "build_type", "arch"
-    generators = "cmake_paths"
+    generators = "cmake"
     requires = "eigen/3.3.7@conan/stable", "glog/0.4.0@bincrafters/stable", "gflags/2.2.2@bincrafters/stable"
     build_policy    = 'missing'
-    exports_sources = "ceres-solver.patch"
+    #exports_sources = ["ceres-solver.patch", "FindEigen3.cmake"]
+    exports_sources = ["ceres-solver.patch"]
     options         = {
-        'shared'  : [True, False],
-        'examples': [True, False],
-        'fPIC':   [True, False],
-        'suitesparse': [True, False],
-        'cxsparse':    [True, False],
-        'blas':        ['openblas', 'blas', 'custom', 'system'], # System basically doesn't do anything which should search system paths
-        'cppstd':      [11,14,17],
+        "fPIC"                  : [True, False],
+        "shared"                : [True, False],
+        "examples"              : [True, False],
+        "tests"                 : [True, False],
+        "benchmarks"            : [True, False],
+        "documentation"         : [True, False],
+        "miniglog"              : [True, False],
+        "gflags"                : [True, False],
+        "lapack"                : [True, False],
+        "custom_blas"           : [True, False],
+        "eigensparse"           : [True, False],
+        "suitesparse"           : [True, False],
+        "acceleratesparese"     : [True, False],
+        "cxsparse"              : [True, False],
+        "schur"                 : [True, False],
+        "blas_prefer_pkgconfig" : [True, False],
+        "blas"                  : ['OpenBLAS', 'MKL', 'Intel', 'Intel10_64lp', 'Intel10_64lp_seq', 'Intel10_64ilp',
+                                    'Intel10_64lp_seq', 'FLAME', 'Goto', 'ATLAS PhiPACK', 'Generic', 'All'],
+        "blas_libraries"        : "ANY",
+        "lapack_libraries"      : "ANY",
     }
-    default_options = (
-        'shared=False',
-        'examples=False',
-        'fPIC=True',
-        'suitesparse=False',
-        'cxsparse=False',
-        'blas=custom',
-        'cppstd=11'
-    )
+    default_options = {
+        "fPIC"                  : True,
+        "shared"                : False,
+        "examples"              : False,
+        "tests"                 : False,
+        "benchmarks"            : False,
+        "documentation"         : False,
+        "miniglog"              : False,
+        "gflags"                : True,
+        "lapack"                : True,
+        "custom_blas"           : True,
+        "eigensparse"           : True,
+        "suitesparse"           : False,
+        "acceleratesparese"     : False,
+        "cxsparse"              : False,
+        "schur"                 : False,
+        "blas_prefer_pkgconfig" : False,
+        "blas"                  : "OpenBLAS",
+        "blas_libraries"        : None,
+        "lapack_libraries"      : None,
+    }
 
+    _source_subfolder = "ceres-solver-"+version
+    _build_subfolder  = "ceres-solver-"+version
+
+    def requirements(self):
+        if self.options.blas == "OpenBLAS":
+            self.requires("openblas/0.3.7")
+
+    def configure(self):
+        if self.options.blas == "MKL":
+            self.options.blas = "Intel10_64lp"
+        if self.options.blas == "OpenBLAS":
+            self.options["openblas"].shared         = self.options.shared
+            self.options["openblas"].fPIC           = self.options.fPIC
+            self.options["openblas"].build_lapack   = True
+            self.options["openblas"].dynamic_arch   = False
 
     def source(self):
-        git = tools.Git(folder="ceres-solver-"+self.version)
+        git = tools.Git(folder=self._source_subfolder)
         git.clone("https://github.com/ceres-solver/ceres-solver.git")
         git.checkout("edb8322bdabef336db290be1cc557145b6d4bf80")
-        self.run("cd ceres-solver-" +self.version + " && git status")
-        # git.patch("ceres-solver.patch")
-        tools.patch(base_path="ceres-solver-"+self.version, patch_file="ceres-solver.patch")
-        # 47e784bb4146da52d3b0695877326d60c36ab189 worked
-        # edb8322bdabef336db290be1cc557145b6d4bf80 newest (dec 2019)
-    def configure(self):
-        if conan_version >= Version("1.21.0"):
-            if(not tools.valid_min_cppstd(self,self.options.cppstd)):
-                cppstd = self.settings.get_safe("compiler.cppstd")
-                if cppstd:
-                    self.options.cppstd = cppstd
-                    tools.check_min_cppstd(self, self.options.cppstd)
-                else:
-                    compiler = self.settings.get_safe("compiler")
-                    compiler_version = self.settings.get_safe("compiler.version")
-                    return cppstd_default(compiler, compiler_version)
-
-
 
     def build(self):
+        # Patch to find Eigen3 properly
+        tools.patch(base_path=self._build_subfolder, patch_file="ceres-solver.patch")
+        valid_ext = []
+        if self.options.shared:
+            valid_ext = ['.so', '.dll', '.dylib']
+        else:
+            valid_ext = ['.a', '.lib']
+
+        # Collect roots for all dependencies, as these usually contain
+        # the Find???.cmake modules ceres looks for, for instane to find
+        # glog, gflags and eigen.
+        module_paths = []
+        for dep in self.deps_cpp_info.deps:
+            module_paths.append(self.deps_cpp_info[dep].rootpath)
+        module_paths = ';'.join(str(x) for x in module_paths)
+
         cmake = CMake(self)
-        cmake.definitions["CMAKE_TOOLCHAIN_FILE"] = "conan_paths.cmake" #generated by cmake_path generator
-        cmake.definitions["BUILD_TESTING"] = False
-        cmake.definitions["BUILD_EXAMPLES"] = True if self.options.examples else False
-        cmake.definitions["BUILD_SHARED_LIBS"] = False
-        cmake.definitions["SUITESPARSE"] = True if self.options.suitesparse else False
-        cmake.definitions["CXSPARSE"] = False
-        cmake.definitions["SCHUR_SPECIALIZATIONS"] = False
-        cmake.definitions["CUSTOM_BLAS"] = True if self.options.blas == "custom" else False
-        cmake.definitions['NO_CMAKE_PACKAGE_REGISTRY'] = True
-        cmake.definitions['EIGEN_INCLUDE_DIR:PATH'] = os.path.join(self.deps_cpp_info['eigen'].rootpath, 'include', 'eigen3')
-        cmake.definitions['EIGEN_INCLUDE_DIR_HINTS:PATH'] = os.path.join(self.deps_cpp_info['eigen'].rootpath, 'include', 'eigen3')
-        cmake.definitions['Eigen3_DIR:PATH'] =  os.path.join(self.deps_cpp_info['eigen'].rootpath, 'share', 'eigen3', 'cmake')
-        cmake.definitions['EIGEN3_INCLUDE_DIR:PATH'] =  os.path.join(self.deps_cpp_info['eigen'].rootpath, 'include', 'eigen3')
-        cmake.definitions['EIGEN3_ROOT:PATH'] =  os.path.join(self.deps_cpp_info['eigen'].rootpath, 'include')
-        cmake.definitions['GFLAGS_INCLUDE_DIR:PATH'] = os.path.join(self.deps_cpp_info['gflags'].rootpath, 'include')
-        cmake.definitions['GFLAGS_LIBRARY:PATH'] = os.path.join(self.deps_cpp_info['gflags'].rootpath, 'lib')
-        cmake.definitions['GLOG_INCLUDE_DIR:PATH'] = os.path.join(self.deps_cpp_info['glog'].rootpath, 'include')
-        cmake.definitions['GLOG_LIBRARY:PATH'] = os.path.join(self.deps_cpp_info['glog'].rootpath, 'lib')
-        cmake.definitions['CMAKE_CXX_STANDARD'] = self.options.cppstd
-        if 'fPIC' in self.options and self.options.fPIC:
-            cmake.definitions['CMAKE_POSITION_INDEPENDENT_CODE'] = 'ON'
+        cmake.definitions['CMAKE_EXPORT_NO_PACKAGE_REGISTRY']               = True
+        cmake.definitions['CMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY']         = True
+        cmake.definitions['CMAKE_FIND_PACKAGE_NO_SYSTEM_PACKAGE_REGISTRY']  = True
+        cmake.definitions["CMAKE_POSITION_INDEPENDENT_CODE"]    = self.options.fPIC
+        cmake.definitions["BUILD_SHARED_LIBS"]                  = self.options.shared
+        cmake.definitions["BUILD_EXAMPLES"]                     = self.options.examples
+        cmake.definitions["BUILD_TESTING"]                      = self.options.tests
+        cmake.definitions["BUILD_BENCHMARKS"]                   = self.options.benchmarks
+        cmake.definitions["BUILD_DOCUMENTATION"]                = self.options.documentation
+        cmake.definitions["MINIGLOG"]                           = self.options.miniglog
+        cmake.definitions["GFLAGS"]                             = self.options.gflags
+        cmake.definitions["LAPACK"]                             = self.options.lapack
+        cmake.definitions["CUSTOM_BLAS"]                        = self.options.custom_blas
+        cmake.definitions["EIGENSPARSE"]                        = self.options.eigensparse
+        cmake.definitions["SUITESPARSE"]                        = self.options.suitesparse
+        cmake.definitions["ACCELERATESPARSE"]                   = self.options.acceleratesparese
+        cmake.definitions["CXSPARSE"]                           = self.options.cxsparse
+        cmake.definitions["SCHUR_SPECIALIZATIONS"]              = self.options.schur
+        cmake.definitions["BLA_PREFER_PKGCONFIG"]               = self.options.blas_prefer_pkgconfig
+        cmake.definitions["BLA_VENDOR"]                         = self.options.blas
+        cmake.definitions["BLA_STATIC"]                         = not self.options.shared
+        cmake.definitions['CMAKE_MODULE_PATH']                  = module_paths
+        cmake.definitions['CMAKE_PREFIX_PATH']                  = module_paths
+        cmake.definitions['EIGEN3_INCLUDE_DIR']                 = self.deps_cpp_info['eigen'].include_paths[0]
 
-        if tools.os_info.is_linux:
-            cmake.definitions['BUILD_SHARED_LIBS:BOOL'] = True if self.options.shared else False
+        # Find the openblas library
+        if self.options.blas == "OpenBLAS":
+            openblas_libs = []
+            for path in self.deps_cpp_info["openblas"].lib_paths:
+                for file in os.listdir(path):
+                    if "openblas" in file and any(file.endswith(ext) for ext in valid_ext):
+                        openblas_libs.append(path + '/' + file)
+            for lib in self.deps_cpp_info["openblas"].system_libs:
+                openblas_libs.append(lib)
 
-        cmake.configure( source_folder=self.build_folder+'/ceres-solver-'+self.version )
+            openblas_libs=';'.join(str(x) for x in openblas_libs)
+            cmake.definitions["BLAS_LIBRARIES"]     = openblas_libs
+            cmake.definitions["LAPACK_LIBRARIES"]   = openblas_libs
+        # Or override if manually specified
+        if self.options.blas_libraries:
+            cmake.definitions["BLAS_LIBRARIES"]     = self.options.blas_libraries
+        if self.options.lapack_libraries:
+            cmake.definitions["LAPACK_LIBRARIES"]   = self.options.lapack_libraries
+
+        cmake.configure(source_folder=self._build_subfolder)
         cmake.build()
         cmake.install()
 
