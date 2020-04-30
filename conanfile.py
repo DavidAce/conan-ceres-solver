@@ -68,13 +68,13 @@ class CeresSolver(ConanFile):
             self.requires("openblas/0.3.7")
 
     def configure(self):
+        if self.settings.compiler == 'Visual Studio':
+            del self.options.fPIC
         if self.options.blas == "MKL":
             self.options.blas = "Intel10_64lp"
         if self.options.blas == "OpenBLAS":
-            self.options["openblas"].shared         = self.options.shared
-            self.options["openblas"].fPIC           = self.options.fPIC
+            # Override default of openblas
             self.options["openblas"].build_lapack   = True
-            self.options["openblas"].dynamic_arch   = False
 
     def source(self):
         git = tools.Git(folder=self._source_subfolder)
@@ -100,11 +100,8 @@ class CeresSolver(ConanFile):
         module_paths = ';'.join(str(x) for x in module_paths)
 
         cmake = CMake(self)
-        cmake.definitions['CMAKE_EXPORT_NO_PACKAGE_REGISTRY']               = True
         cmake.definitions['CMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY']         = True
         cmake.definitions['CMAKE_FIND_PACKAGE_NO_SYSTEM_PACKAGE_REGISTRY']  = True
-        cmake.definitions["CMAKE_POSITION_INDEPENDENT_CODE"]    = self.options.fPIC
-        cmake.definitions["BUILD_SHARED_LIBS"]                  = self.options.shared
         cmake.definitions["BUILD_EXAMPLES"]                     = self.options.examples
         cmake.definitions["BUILD_TESTING"]                      = self.options.tests
         cmake.definitions["BUILD_BENCHMARKS"]                   = self.options.benchmarks
@@ -118,12 +115,14 @@ class CeresSolver(ConanFile):
         cmake.definitions["ACCELERATESPARSE"]                   = self.options.acceleratesparese
         cmake.definitions["CXSPARSE"]                           = self.options.cxsparse
         cmake.definitions["SCHUR_SPECIALIZATIONS"]              = self.options.schur
-        cmake.definitions["BLA_PREFER_PKGCONFIG"]               = self.options.blas_prefer_pkgconfig
-        cmake.definitions["BLA_VENDOR"]                         = self.options.blas
-        cmake.definitions["BLA_STATIC"]                         = not self.options.shared
         cmake.definitions['CMAKE_MODULE_PATH']                  = module_paths
         cmake.definitions['CMAKE_PREFIX_PATH']                  = module_paths
         cmake.definitions['EIGEN3_INCLUDE_DIR']                 = self.deps_cpp_info['eigen'].include_paths[0]
+        cmake.definitions["BLA_PREFER_PKGCONFIG"]               = self.options.blas_prefer_pkgconfig
+        cmake.definitions["BLA_STATIC"]                         = not self.options.shared
+        if not self.options.blas_libraries:
+            cmake.definitions["BLA_VENDOR"]                     = self.options.blas
+
 
         # Find the openblas library
         if self.options.blas == "OpenBLAS":
