@@ -12,7 +12,7 @@ class CeresSolver(ConanFile):
     url = "https://github.com/ceres-solver/ceres-solver"
     settings = "os", "compiler", "build_type", "arch"
     generators = "cmake"
-    requires = "eigen/3.3.7@conan/stable", "glog/0.4.0@bincrafters/stable", "gflags/2.2.2@bincrafters/stable"
+    requires = "eigen/3.3.7@conan/stable" ,"glog/0.4.0@bincrafters/stable", "gflags/2.2.2@bincrafters/stable"
     build_policy    = 'missing'
     #exports_sources = ["ceres-solver.patch", "FindEigen3.cmake"]
     exports_sources = ["ceres-solver.patch"]
@@ -131,6 +131,8 @@ class CeresSolver(ConanFile):
                 for file in os.listdir(path):
                     if "openblas" in file and any(file.endswith(ext) for ext in valid_ext):
                         openblas_libs.append(path + '/' + file)
+            if not openblas_libs:
+                raise ValueError("Could not find any openblas libraries")
             for lib in self.deps_cpp_info["openblas"].system_libs:
                 openblas_libs.append(lib)
 
