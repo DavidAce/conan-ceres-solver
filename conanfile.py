@@ -150,6 +150,8 @@ class CeresSolver(ConanFile):
         cmake.install()
 
     def package_info(self):
+        if os.path.isdir(self.cpp_info.rootpath + "/lib64"):
+            self.cpp_info.libdirs.append("lib64")
         self.cpp_info.libs = tools.collect_libs(self)
         if not self.cpp_info.libs:
             raise Exception("No libs collected")
